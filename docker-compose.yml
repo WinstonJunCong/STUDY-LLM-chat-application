@@ -9,8 +9,6 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DATABASE_PATH=/app/data/chat.db
-    volumes:
-      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -13,30 +13,38 @@ async def chat(request: ChatRequest):
     if not request.message.strip():
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
-    database.add_message("user", request.message)
-
     history = database.get_all_messages()
     history_formatted = [
         {"role": msg["role"], "parts": [{"text": msg["content"]}]}
         for msg in history
     ]
+    # Add current message IN MEMORY (not DB yet)
+    history_formatted.append({"role": "user", "parts": [{"text": request.message}]})
 
     full_response = ""
 
     async def token_generator():
         nonlocal full_response
-        async for token in llm.stream_llm_response(history_formatted):
-            if "error" in token and "API error" in token:
+        try:
+            async for token in llm.stream_llm_response(history_formatted):
+                if "error" in token and "API error" in token:
+                    yield token
+                    continue
+                
+                full_response += extract_token_from_sse(token)
                 yield token
-                continue
-            
-            full_response += extract_token_from_sse(token)
-            yield token
 
-        if full_response:
-            database.add_message("assistant", full_response)
-        else:
-            database.add_message("assistant", "[No response]")
+            # Only save to DB after successful streaming
+            if full_response:
+                database.add_message("user", request.message)
+                database.add_message("assistant", full_response)
+            else:
+                database.add_message("user", request.message)
+                database.add_message("assistant", "[No response]")
+        except Exception as e:
+            # On any failure - nothing saved to DB (clean state)
+            error_token = f'data: {{"error": "Request failed: {str(e)}"}}\n\n'
+            yield error_token
 
     return StreamingResponse(
         token_generator(),
