@@ -154,3 +154,105 @@ winston/
 ## License
 
 MIT
+
+---
+
+## Challenges Faced
+
+### 1. Token Streaming Not Working
+**Problem:** Tokens arriving all at once instead of token-by-token.
+
+**Root Cause:** Python `httpx` buffers SSE responses at multiple layers.
+
+**Solution:** Used `aiter_text()` with manual buffer handling instead of `aiter_lines()`:
+
+```python
+buffer = ""
+async for chunk in response.aiter_text():
+    buffer += chunk
+    while '\n\n' in buffer:
+        line, buffer = buffer.split('\n\n', 1)
+        yield line
+```
+
+### 2. Frontend Progression
+**Problem:** Started with Streamlit, then Gradio - both had issues with true streaming.
+
+**Solution:** Moved to React + Vite with ReadableStream for proper token-by-token display.
+
+### 3. Docker Volume Mount on Windows
+**Problem:** `/run/desktop/mnt/host/x/...` path conflicts with Docker Desktop on Windows.
+
+**Solution:** Used named volumes instead of bind mounts in docker-compose.yml.
+
+### 4. Testing Async HTTP Calls
+**Problem:** Mocking `httpx.AsyncClient` with async context managers is complex.
+
+**Attempted:** unittest.mock, aioresponses - both had issues with async context managers.
+
+**Solution:** Used `respx` - a library specifically designed for mocking httpx requests. Clean and works perfectly.
+
+### 5. Data Integrity - Orphaned Messages
+**Problem:** User messages saved to DB before LLM call - if LLM fails, question remains orphaned.
+
+**Solution:** Build history in-memory, save to DB only after successful LLM response.
+
+---
+
+## Potential Questions from Lead Developer
+
+### Q1: Why not use WebSockets instead of SSE?
+**A:** SSE is simpler for one-way streaming (server → client). WebSockets add complexity (connection management, reconnection logic). For this use case where user sends HTTP request and receives stream, SSE is the right choice.
+
+### Q2: Why SQLite instead of PostgreSQL/MySQL?
+**A:** This is a single-user, single-session application. SQLite is:
+- Zero configuration
+- No separate server needed
+- Perfect for this scale
+- Easy to migrate later if needed
+
+### Q3: How does the frontend show tokens immediately?
+**A:** Using `ReadableStream` with `TextDecoder`:
+```javascript
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const chunk = decoder.decode(value, { stream: true });
+  // Process SSE chunks...
+}
+```
+
+### Q4: What happens if the user refreshes the page?
+**A:** The frontend calls `/api/messages` on load to restore conversation history from SQLite. User sees their previous messages.
+
+### Q5: How do you handle rate limiting?
+**A:** The Gemini API returns 429 when rate limited. We catch this and display "Rate limit exceeded" to the user with a retry button that uses exponential backoff (1s → 2s → 4s → max 30s).
+
+### Q6: Why save messages in-memory before calling LLM?
+**A:** To maintain conversation context while avoiding orphaned messages in DB on failure. See "Data Integrity" challenge above.
+
+### Q7: How do you test error handling without a real API key?
+**A:** We use `respx` to mock HTTP responses:
+```python
+@respx.mock
+async def test_503_returns_service_unavailable():
+    respx.post(llm.GEMINI_API_URL).mock(
+        return_value=httpx.Response(503)
+    )
+    # Test error handling...
+```
+
+### Q8: What's the security model?
+**A:** No authentication - as specified in requirements. The API key is set via environment variable. In production, would recommend adding API key validation or rate limiting at the gateway level.
+
+### Q9: Can this scale to multiple users?
+**A:** Currently no - single SQLite database, single chat session. For multi-user:
+- Add user_id to messages table
+- Use PostgreSQL for concurrent connections
+- Add authentication
+- Implement rate limiting per user
+
+### Q10: Why React instead of Next.js?
+**A:** Simpler for this use case. Next.js adds SSR complexity not needed for a simple chat app. Can migrate to Next.js if SEO or SSR becomes important.
