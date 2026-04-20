@@ -62,7 +62,7 @@ Navigate to http://localhost:8501
 
 ## Model
 
-This branch uses **unsloth/Qwen2.5-2B-GGUF Q4_K_M** (~1.5GB):
+This branch uses **unsloth/Qwen3.5-2B-GGUF Q4_K_M** (~1.5GB):
 - Fast inference on 4-6GB GPUs
 - Good quality for chat
 - Optimized GGUF format from Unsloth
