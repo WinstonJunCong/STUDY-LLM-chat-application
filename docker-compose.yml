@@ -18,7 +18,7 @@ services:
 
   # llama.cpp server
   llamacpp:
-    image: ghcr.io/ggerganov/llama.cpp:server
+    image: ghcr.io/ggml-org/llama.cpp:server
     container_name: winston-llamacpp
     ports:
       - "8080:8080"
