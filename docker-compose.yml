@@ -7,6 +7,7 @@ services:
       - ./models:/models
     command: |
       sh -c "mkdir -p /models && \
+      apk add --no-cache curl && \
       if [ ! -f /models/Qwen3.5-2B-Q4_K_M.gguf ]; then \
       echo 'Downloading unsloth/Qwen3.5-2B model...' && \
       curl -L --retry 3 --connect-timeout 30 -o /models/Qwen3.5-2B-Q4_K_M.gguf \
