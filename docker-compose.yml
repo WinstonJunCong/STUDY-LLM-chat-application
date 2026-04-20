@@ -8,9 +8,9 @@ services:
     command: |
       sh -c "mkdir -p /models && \
       apk add --no-cache curl && \
-      if [ ! -f /models/Qwen3.5-2B-Q4_K_M.gguf ]; then \
-      echo 'Downloading unsloth/Qwen3.5-2B model...' && \
-      curl -L --retry 3 --connect-timeout 30 -o /models/Qwen3.5-2B-Q4_K_M.gguf 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf' && \
+      if [ ! -f /models/mistral-7b-v0.1.Q4_K_M.gguf ]; then \
+      echo 'Downloading Mistral-7B model...' && \
+      curl -L --retry 3 --connect-timeout 30 -o /models/mistral-7b-v0.1.Q4_K_M.gguf 'https://huggingface.co/TheBloke/Mistral-7B-v0.1-GGUF/resolve/main/mistral-7b-v0.1.Q4_K_M.gguf' && \
       echo 'Download complete!'; \
       else \
       echo 'Model already exists, skipping download'; \
@@ -25,11 +25,9 @@ services:
     volumes:
       - ./models:/models
     command: [
-      "-m", "/models/Qwen3.5-2B-Q4_K_M.gguf",
+      "-m", "/models/mistral-7b-v0.1.Q4_K_M.gguf",
       "--host", "0.0.0.0",
-      "--port", "8080",
-      "-ngl", "32",
-      "--chat-template", "chatml"
+      "-ngl", "32"
     ]
     deploy:
       resources:

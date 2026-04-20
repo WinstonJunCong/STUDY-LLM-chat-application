@@ -62,10 +62,9 @@ Navigate to http://localhost:8501
 
 ## Model
 
-This branch uses **unsloth/Qwen3.5-2B-GGUF Q4_K_M** (~1.5GB):
-- Fast inference on 4-6GB GPUs
+This branch uses **Mistral-7B-v0.1 Q4_K_M** (~4GB):
 - Good quality for chat
-- Optimized GGUF format from Unsloth
+- GGUF format from TheBloke
 
 To change the model, edit `docker-compose.yml`:
 ```yaml
