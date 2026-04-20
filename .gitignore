@@ -24,3 +24,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Model files (GGUF)
+models/*.gguf
