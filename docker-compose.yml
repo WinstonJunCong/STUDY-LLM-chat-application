@@ -7,10 +7,10 @@ services:
       - ./models:/models
     command: |
       sh -c "mkdir -p /models && \
-      if [ ! -f /models/qwen2.5-1.5b-instruct-q4_k_m.gguf ]; then \
-      echo 'Downloading Qwen2.5-1.5B model...' && \
-      wget -q --show-progress -O /models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
-      'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf'; \
+      if [ ! -f /models/Qwen2.5-2B-Q4_K_M.gguf ]; then \
+      echo 'Downloading unsloth/Qwen2.5-2B model...' && \
+      wget -q -O /models/Qwen2.5-2B-Q4_K_M.gguf \
+      'https://huggingface.co/unsloth/Qwen2.5-2B-GGUF/resolve/main/Qwen2.5-2B-Q4_K_M.gguf'; \
       echo 'Download complete!'; \
       else \
       echo 'Model already exists, skipping download'; \
@@ -25,7 +25,7 @@ services:
     volumes:
       - ./models:/models
     command: [
-      "-m", "/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "-m", "/models/Qwen2.5-2B-Q4_K_M.gguf",
       "--host", "0.0.0.0",
       "--port", "8080",
       "-ngl", "32",

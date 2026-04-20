@@ -62,10 +62,10 @@ Navigate to http://localhost:8501
 
 ## Model
 
-This branch uses **Qwen2.5-1.5B-Instruct-Q4_K_M** (~1GB):
+This branch uses **unsloth/Qwen2.5-2B-GGUF Q4_K_M** (~1.5GB):
 - Fast inference on 4-6GB GPUs
 - Good quality for chat
-- Optimized GGUF format
+- Optimized GGUF format from Unsloth
 
 To change the model, edit `docker-compose.yml`:
 ```yaml
