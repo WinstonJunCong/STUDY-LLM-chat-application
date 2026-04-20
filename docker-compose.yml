@@ -1,5 +1,5 @@
 services:
-# Download model on first run
+  # Download model on first run
   model-downloader:
     image: alpine:latest
     container_name: winston-model-downloader
@@ -8,15 +8,15 @@ services:
     command: |
       sh -c "mkdir -p /models && \
       apk add --no-cache curl && \
-      if [ ! -f /models/mistral-7b-v0.1.Q4_K_M.gguf ]; then \
-      echo 'Downloading Mistral-7B model...' && \
-      curl -L --retry 3 --connect-timeout 30 -o /models/mistral-7b-v0.1.Q4_K_M.gguf 'https://huggingface.co/TheBloke/Mistral-7B-v0.1-GGUF/resolve/main/mistral-7b-v0.1.Q4_K_M.gguf' && \
+      if [ ! -f /models/Qwen3.5-4B-Q4_K_M.gguf ]; then \
+      echo 'Downloading Qwen3.5-4B model...' && \
+      curl -L --retry 3 --connect-timeout 30 -o /models/Qwen3.5-4B-Q4_K_M.gguf 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf' && \
       echo 'Download complete!'; \
       else \
       echo 'Model already exists, skipping download'; \
       fi"
 
-# llama.cpp server
+  # llama.cpp server
   llamacpp:
     image: ghcr.io/ggml-org/llama.cpp:server
     container_name: winston-llamacpp
@@ -25,10 +25,10 @@ services:
     volumes:
       - ./models:/models
     command: [
-      "-m", "/models/mistral-7b-v0.1.Q4_K_M.gguf",
+      "-m", "/models/Qwen3.5-4B-Q4_K_M.gguf",
       "--host", "0.0.0.0",
       "-ngl", "32",
-      "--chat-template", "mistral"
+      "--chat-template", "chatml"
     ]
     deploy:
       resources:
@@ -62,30 +62,6 @@ services:
       llamacpp:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: llm-chat-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - LLAMACPP_URL=http://llamacpp:8080
-      - DATABASE_PATH=/app/data/chat.db
-    depends_on:
-      - llamacpp
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   frontend:
     build:
