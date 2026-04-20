@@ -16,7 +16,7 @@ services:
       echo 'Model already exists, skipping download'; \
       fi"
 
-  # llama.cpp server
+# llama.cpp server
   llamacpp:
     image: ghcr.io/ggml-org/llama.cpp:server
     container_name: winston-llamacpp
@@ -37,9 +37,30 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 180s
     depends_on:
       model-downloader:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: llm-chat-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - LLAMACPP_URL=http://llamacpp:8080
+      - DATABASE_PATH=/app/data/chat.db
+    depends_on:
+      llamacpp:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

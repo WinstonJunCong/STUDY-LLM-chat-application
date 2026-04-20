@@ -15,7 +15,10 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
     }
     
     # Convert history to OpenAI format
-    messages = []
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant. Be concise and direct."}
+    ]
+    
     for msg in history:
         role = msg.get("role", "user")
         if "parts" in msg:
@@ -109,7 +112,10 @@ async def generate_with_history(history: list[dict]) -> str:
     headers = {"Content-Type": "application/json"}
     
     # Convert history to OpenAI format
-    messages = []
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant. Be concise and direct."}
+    ]
+    
     for msg in history:
         role = msg.get("role", "user")
         if "parts" in msg:
