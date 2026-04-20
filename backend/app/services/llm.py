@@ -31,7 +31,8 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
         "messages": messages,
         "stream": True,
         "temperature": 0.7,
-        "max_tokens": 2048
+        "max_tokens": 2048,
+        "thinking": False
     }
 
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -113,7 +114,7 @@ async def generate_with_history(history: list[dict]) -> str:
     
     # Convert history to OpenAI format
     messages = [
-        {"role": "system", "content": "You are a helpful assistant. Be concise and direct."}
+        {"role": "system", "content": "You are a helpful assistant. Be concise and direct. "}
     ]
     
     for msg in history:
@@ -127,7 +128,8 @@ async def generate_with_history(history: list[dict]) -> str:
     payload = {
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 2048
+        "max_tokens": 2048,
+        "thinking": False
     }
 
     async with httpx.AsyncClient(timeout=120.0) as client:

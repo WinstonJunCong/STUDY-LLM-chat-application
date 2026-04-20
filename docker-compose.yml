@@ -18,7 +18,7 @@ services:
 
   # llama.cpp server
   llamacpp:
-    image: ghcr.io/ggml-org/llama.cpp:server
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
     container_name: winston-llamacpp
     ports:
       - "8080:8080"
@@ -28,7 +28,11 @@ services:
       "-m", "/models/Qwen3.5-4B-Q4_K_M.gguf",
       "--host", "0.0.0.0",
       "-ngl", "32",
-      "--chat-template", "chatml"
+      "--ctx-size", "8192",
+      # "--chat-template", "chatml",
+      "--reasoning-format", "deepseek",
+      "--flash-attn", "1",
+      "-rea", "off"
     ]
     deploy:
       resources:
