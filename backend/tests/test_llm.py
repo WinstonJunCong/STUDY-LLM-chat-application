@@ -1,12 +1,11 @@
-"""LLM service tests with proper HTTP mocking using respx - VLLM version"""
+"""LLM service tests with proper HTTP mocking using respx - llama.cpp version"""
 import pytest
 import os
 import sys
 from pathlib import Path
 
 # Set environment BEFORE importing llm
-os.environ["VLLM_URL"] = "http://vllm:8000"
-os.environ["VLLM_MODEL"] = "meta-llama/Llama-3.2-1B-Instruct"
+os.environ["LLAMACPP_URL"] = "http://llamacpp:8080"
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -16,62 +15,11 @@ import app.services.llm as llm
 
 
 @pytest.mark.asyncio
-async def test_500_returns_server_error():
-    """Test that 500 returns server error message"""
+async def test_oom_returns_friendly_message():
+    """Test that OOM returns friendly message"""
     with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
-            return_value=httpx.Response(500)
-        )
-        
-        result = []
-        async for token in llm.stream_llm_response([]):
-            result.append(token)
-        
-        assert len(result) == 1
-        assert "error" in result[0]
-        assert "not be loaded" in result[0]
-
-
-@pytest.mark.asyncio
-async def test_503_returns_service_unavailable():
-    """Test that 503 returns service unavailable message"""
-    with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
-            return_value=httpx.Response(503)
-        )
-        
-        result = []
-        async for token in llm.stream_llm_response([]):
-            result.append(token)
-        
-        assert len(result) == 1
-        assert "error" in result[0]
-        assert "unavailable" in result[0]
-
-
-@pytest.mark.asyncio
-async def test_404_returns_model_not_found():
-    """Test that 404 returns model not found message"""
-    with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
-            return_value=httpx.Response(404)
-        )
-        
-        result = []
-        async for token in llm.stream_llm_response([]):
-            result.append(token)
-        
-        assert len(result) == 1
-        assert "error" in result[0]
-        assert "not found" in result[0]
-
-
-@pytest.mark.asyncio
-async def test_cuda_oom_returns_friendly_message():
-    """Test that CUDA OOM returns friendly message"""
-    with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
-            return_value=httpx.Response(507, text="CUDA out of memory. Tried to allocate 2.00 GiB")
+        respx.post(url__startswith="http://llamacpp:8080/v1/chat").mock(
+            return_value=httpx.Response(500, text="error: failed to load model: out of memory")
         )
         
         result = []
@@ -84,11 +32,11 @@ async def test_cuda_oom_returns_friendly_message():
 
 
 @pytest.mark.asyncio
-async def test_unknown_error_exposes_code():
-    """Test that unknown errors expose the error code for debugging"""
+async def test_model_not_found_returns_friendly_message():
+    """Test that model not found returns friendly message"""
     with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
-            return_value=httpx.Response(520, text="Unknown error from VLLM server")
+        respx.post(url__startswith="http://llamacpp:8080/v1/chat").mock(
+            return_value=httpx.Response(400, text="error: failed to load model: file not found")
         )
         
         result = []
@@ -97,7 +45,41 @@ async def test_unknown_error_exposes_code():
         
         assert len(result) == 1
         assert "error" in result[0]
-        assert "520" in result[0]
+        assert "not found" in result[0]
+
+
+@pytest.mark.asyncio
+async def test_gpu_error_returns_friendly_message():
+    """Test that GPU error returns friendly message"""
+    with respx.mock:
+        respx.post(url__startswith="http://llamacpp:8080/v1/chat").mock(
+            return_value=httpx.Response(500, text="error: CUDA error: no CUDA-capable device")
+        )
+        
+        result = []
+        async for token in llm.stream_llm_response([]):
+            result.append(token)
+        
+        assert len(result) == 1
+        assert "error" in result[0]
+        assert "GPU error" in result[0]
+
+
+@pytest.mark.asyncio
+async def test_unknown_error_exposes_code():
+    """Test that unknown errors expose the error for debugging"""
+    with respx.mock:
+        respx.post(url__startswith="http://llamacpp:8080/v1/chat").mock(
+            return_value=httpx.Response(500, text="Unknown internal error occurred")
+        )
+        
+        result = []
+        async for token in llm.stream_llm_response([]):
+            result.append(token)
+        
+        assert len(result) == 1
+        assert "error" in result[0]
+        assert "500" in result[0]
 
 
 @pytest.mark.asyncio
@@ -110,7 +92,7 @@ async def test_successful_response_streams_tokens():
     )
     
     with respx.mock:
-        respx.post(url__startswith="http://vllm:8000/v1/chat").mock(
+        respx.post(url__startswith="http://llamacpp:8080/v1/chat").mock(
             return_value=httpx.Response(200, text=sse_data)
         )
         
@@ -128,10 +110,10 @@ def test_llm_module_imports():
     assert hasattr(llm, 'stream_llm_response')
     assert hasattr(llm, 'generate_with_history')
     assert hasattr(llm, 'get_full_response')
-    assert llm.VLLM_MODEL == "meta-llama/Llama-3.2-1B-Instruct"
+    assert "llamacpp" in llm.LLAMACPP_URL
 
 
 def test_llm_api_url_uses_correct_endpoint():
-    """Test that API URL uses VLLM endpoint"""
-    assert "/v1/chat/completions" in llm.VLLM_API_URL
-    assert "vllm" in llm.VLLM_URL
+    """Test that API URL uses llama.cpp endpoint"""
+    assert "/v1/chat/completions" in llm.LLAMACPP_API_URL
+    assert "llamacpp" in llm.LLAMACPP_URL

@@ -1,14 +1,36 @@
 services:
-  vllm:
-    image: vllm/vllm-openai:latest
-    container_name: winston-vllm
+  # Download model on first run
+  model-downloader:
+    image: alpine:latest
+    container_name: winston-model-downloader
+    volumes:
+      - ./models:/models
+    command: |
+      sh -c "mkdir -p /models && \
+      if [ ! -f /models/qwen2.5-1.5b-instruct-q4_k_m.gguf ]; then \
+      echo 'Downloading Qwen2.5-1.5B model...' && \
+      wget -q --show-progress -O /models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+      'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf'; \
+      echo 'Download complete!'; \
+      else \
+      echo 'Model already exists, skipping download'; \
+      fi"
+
+  # llama.cpp server
+  llamacpp:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: winston-llamacpp
     ports:
-      - "8001:8000"
-    environment:
-      - MODEL=meta-llama/Llama-3.2-1B-Instruct
-      - GPU_MEMORY_UTILIZATION=0.9
-      - MAX_NUM_SEQS=4
-      - TENSOR_PARALLEL_SIZE=1
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    command: [
+      "-m", "/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "-ngl", "32",
+      "--chat-template", "chatml"
+    ]
     deploy:
       resources:
         reservations:
@@ -16,15 +38,15 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    volumes:
-      - vllm_model_cache:/root/.cache/huggingface
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
-      interval: 60s
-      timeout: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 300s
 
   backend:
     build:
@@ -34,11 +56,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - VLLM_URL=http://vllm:8000
-      - VLLM_MODEL=${VLLM_MODEL:-meta-llama/Llama-3.2-1B-Instruct}
+      - LLAMACPP_URL=http://llamacpp:8080
       - DATABASE_PATH=/app/data/chat.db
     depends_on:
-      - vllm
+      - llamacpp
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -60,4 +81,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  vllm_model_cache:
+  models:

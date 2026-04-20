@@ -1,6 +1,6 @@
-# Winston - LLM Chat Application (VLLM Version)
+# Winston - LLM Chat Application (llama.cpp Version)
 
-A real-time LLM chat application with token-by-token streaming, using a local VLLM instance instead of cloud APIs.
+A real-time LLM chat application with token-by-token streaming, using a local llama.cpp server instead of cloud APIs.
 
 ## ⚠️ GPU Required
 
@@ -13,16 +13,17 @@ See [Requirements](#requirements) section below.
 - **Token-by-token streaming** via Server-Sent Events (SSE)
 - **Local LLM** - No cloud API calls, runs entirely on your machine
 - **Chat session persistence** with SQLite - LLM remembers conversation history
-- **Error handling** for VLLM-specific errors (500, 503, 404, CUDA OOM)
+- **Error handling** for llama.cpp-specific errors (OOM, model not found, GPU errors)
 - **Markdown rendering** for LLM responses (bold, headers, code blocks, lists)
 - **Exponential backoff retry** on errors (1s → 2s → 4s → max 30s)
 - **React frontend** with typing indicators and ghost bubble
+- **Lightweight** - Much smaller than VLLM (~2GB vs ~10GB)
 
 ## Requirements
 
 ### Hardware
-- **NVIDIA GPU with 6GB+ VRAM** (e.g., RTX 2060, RTX 3060, RTX 4060)
-- Without GPU, this will not work
+- **NVIDIA GPU with 4GB+ VRAM** (e.g., RTX 2060, RTX 3060, RTX 4060)
+- Without GPU, llama.cpp will run on CPU (very slow)
 
 ### Software
 - NVIDIA Driver (installed on Windows)
@@ -34,7 +35,7 @@ See [Requirements](#requirements) section below.
 docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
 ```
 
-If this shows your GPU info, you're ready. If not, install NVIDIA Container Toolkit.
+If this shows your GPU info, you're ready.
 
 ## Setup
 
@@ -48,29 +49,45 @@ If this shows your GPU info, you're ready. If not, install NVIDIA Container Tool
 docker-compose up --build
 ```
 
-This will start:
-- **VLLM** on port 8001 (loads the model)
-- **Backend** on port 8000
-- **Frontend** on port 8501
+This will:
+1. **Download the model** on first run (~1GB, may take a few minutes)
+2. Start **llama.cpp server** on port 8080
+3. Start **Backend** on port 8000
+4. Start **Frontend** on port 8501
 
-**First run:** VLLM will download the model (~2GB), which may take several minutes.
+**First run:** Model download + loading may take 5-10 minutes.
 
 ### 3. Open the App
 Navigate to http://localhost:8501
 
+## Model
+
+This branch uses **Qwen2.5-1.5B-Instruct-Q4_K_M** (~1GB):
+- Fast inference on 4-6GB GPUs
+- Good quality for chat
+- Optimized GGUF format
+
+To change the model, edit `docker-compose.yml`:
+```yaml
+command: [
+  "-m", "/models/your-model.gguf",
+  ...
+]
+```
+
 ## Troubleshooting
 
-### VLLM Won't Start
-- Ensure Docker has GPU access enabled
-- Check Docker Desktop → Settings → Resources → GPU
+### Model Download Stuck
+- First run downloads ~1GB from HuggingFace
+- Check logs: `docker logs winston-model-downloader`
 
 ### CUDA Out of Memory
-- Try a smaller model (1B instead of 3B)
-- Reduce `MAX_NUM_SEQS` in docker-compose.yml
+- Try a smaller model
+- Reduce GPU layers: change `-ngl 32` to `-ngl 16`
 
-### Model Download Stuck
-- First run can take 5-10 minutes depending on internet speed
-- Check VLLM logs: `docker logs winston-vllm`
+### llama.cpp Won't Start
+- Ensure Docker has GPU access enabled
+- Check Docker Desktop → Settings → Resources → GPU
 
 ## API Endpoints
 
@@ -85,7 +102,7 @@ Navigate to http://localhost:8501
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   React     │────▶│   FastAPI   │────▶│    VLLM     │
+│   React     │────▶│   FastAPI   │────▶│ llama.cpp   │
 │  Frontend   │◀────│   Backend   │◀────│ (Local GPU) │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
@@ -105,51 +122,33 @@ pip install -r backend/requirements.txt
 python -m pytest backend/tests/ -v
 ```
 
-**Test Coverage:** 19 tests covering:
+**Test Coverage:** 18 tests covering:
 - Database operations (add, get, clear, roles)
 - API routes (validation, messages, reset)
-- LLM error handling (500, 503, 404, CUDA OOM, unknown errors, streaming)
+- LLM error handling (OOM, model not found, GPU errors, streaming)
 
 ## Error Handling
 
-| Error Code | Cause | Message |
-|------------|-------|---------|
-| 500 | Model not loaded | "Server error. Model may not be loaded yet" |
-| 503 | Service unavailable | "Service unavailable. Please try again later" |
-| 404 | Model not found | "Model not found. Check VLLM_MODEL config" |
-| 507 | CUDA OOM | "GPU out of memory. Try smaller model" |
+| Error | Cause | Message |
+|-------|-------|---------|
+| OOM | GPU out of memory | "GPU out of memory. Try a smaller model." |
+| Model not found | Missing GGUF file | "Model not found. Please check model file." |
+| GPU error | CUDA issue | "GPU error: {details}" |
 | Other | Unknown | Exposed for debugging |
 
 ## Configuration
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `VLLM_URL` | http://vllm:8000 | VLLM API URL |
-| `VLLM_MODEL` | meta-llama/Llama-3.2-1B-Instruct | Model to use |
+| `LLAMACPP_URL` | http://llamacpp:8080 | llama.cpp API URL |
 
-To change the model, edit `.env` or docker-compose.yml:
-```bash
-VLLM_MODEL=meta-llama/Llama-3.2-3B-Instruct
-```
+## Comparison: All Branches
 
-## Available Models
-
-| Model | VRAM Needed | Speed | Quality |
-|-------|-------------|-------|---------|
-| Llama 3.2 1B | ~2GB | Fast | Good |
-| Llama 3.2 3B | ~6GB | Medium | Better |
-| Phi-3.5-mini | ~4GB | Fast | Good |
-| Mistral 7B | ~14GB | Slow | Best |
-
-## Comparison: This Branch vs Main Branch
-
-| Feature | This (VLLM) | Main (Gemini) |
-|---------|-------------|---------------|
-| GPU Required | ✅ Yes | ❌ No |
-| Internet Required | ❌ No | ✅ Yes |
-| Cost | Free | API calls |
-| Speed | Depends on GPU | Depends on API |
-| Privacy | 100% local | Data sent to Google |
+| Branch | Model | GPU | Size | Internet |
+|--------|-------|-----|------|----------|
+| **main** | Gemini (cloud) | ❌ | N/A | ✅ Yes |
+| **vllm** | Qwen (local) | ✅ 6GB+ | ~10GB | ❌ No |
+| **llamacpp** | Qwen (local) | ✅ 4GB+ | ~2GB | ❌ No |
 
 ## License
 

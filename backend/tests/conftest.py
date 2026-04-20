@@ -5,8 +5,7 @@ import tempfile
 # Set environment variables BEFORE importing app modules
 temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
 os.environ["DATABASE_PATH"] = temp_db.name
-os.environ["VLLM_URL"] = "http://vllm:8000"
-os.environ["VLLM_MODEL"] = "meta-llama/Llama-3.2-1B-Instruct"
+os.environ["LLAMACPP_URL"] = "http://llamacpp:8080"
 
 import sys
 from pathlib import Path

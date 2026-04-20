@@ -1,22 +1,20 @@
-"""LLM service for VLLM (OpenAI-compatible API) with streaming support"""
+"""LLM service for llama.cpp (OpenAI-compatible API) with streaming support"""
 import os
 import json
 from typing import AsyncGenerator
 import httpx
 
-VLLM_URL = os.getenv("VLLM_URL", "http://vllm:8000")
-VLLM_MODEL = os.getenv("VLLM_MODEL", "meta-llama/Llama-3.2-1B-Instruct")
-VLLM_API_URL = f"{VLLM_URL}/v1/chat/completions"
+LLAMACPP_URL = os.getenv("LLAMACPP_URL", "http://llamacpp:8080")
+LLAMACPP_API_URL = f"{LLAMACPP_URL}/v1/chat/completions"
 
 
 async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
-    """Stream tokens from VLLM using OpenAI-compatible SSE"""
+    """Stream tokens from llama.cpp using OpenAI-compatible SSE"""
     headers = {
         "Content-Type": "application/json"
     }
     
-    # Convert history to OpenAI format if needed
-    # VLLM expects: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    # Convert history to OpenAI format
     messages = []
     for msg in history:
         role = msg.get("role", "user")
@@ -27,7 +25,6 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
         messages.append({"role": role, "content": content})
     
     payload = {
-        "model": VLLM_MODEL,
         "messages": messages,
         "stream": True,
         "temperature": 0.7,
@@ -38,31 +35,26 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
         try:
             async with client.stream(
                 "POST",
-                VLLM_API_URL,
+                LLAMACPP_API_URL,
                 headers=headers,
                 json=payload
             ) as response:
-                if response.status_code == 500:
-                    yield 'data: {"error": "Server error. Model may not be loaded yet, please try again."}\n\n'
-                    return
-                elif response.status_code == 503:
-                    yield 'data: {"error": "Service unavailable. Please try again later."}\n\n'
-                    return
-                elif response.status_code == 404:
-                    yield 'data: {"error": "Model not found. Please check VLLM_MODEL configuration."}\n\n'
-                    return
-                elif response.status_code != 200:
+                # Handle HTTP errors
+                if response.status_code != 200:
                     try:
                         error_body = await response.aread()
                         error_msg = error_body.decode('utf-8')
                     except:
                         error_msg = f"HTTP {response.status_code}"
                     
-                    # Check for CUDA-specific errors
-                    if "CUDA" in error_msg or "out of memory" in error_msg.lower():
-                        yield 'data: {"error": "GPU out of memory. Try a smaller model or reduce batch size."}\n\n'
-                    elif "CUDA" in error_msg:
-                        yield f'data: {{"error": "CUDA error: {error_msg[:200]}"}}\n\n'
+                    # Check for common llama.cpp errors
+                    error_lower = error_msg.lower()
+                    if "out of memory" in error_lower or "oom" in error_lower:
+                        yield 'data: {"error": "GPU out of memory. Try a smaller model."}\n\n'
+                    elif "model not found" in error_lower or "failed to load model" in error_lower:
+                        yield 'data: {"error": "Model not found. Please check model file."}\n\n'
+                    elif "no gpu" in error_lower or "cuda" in error_lower and "error" in error_lower:
+                        yield f'data: {{"error": "GPU error: {error_msg[:200]}"}}\n\n'
                     else:
                         # Unknown error - expose for debugging
                         yield f'data: {{"error": "Error {response.status_code}: {error_msg[:300]}"}}\n\n'
@@ -84,7 +76,7 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
                                 continue
                             try:
                                 data = json.loads(data_str)
-                                # VLLM/OpenAI streaming format
+                                # llama.cpp/OpenAI streaming format
                                 choices = data.get("choices", [])
                                 if choices:
                                     delta = choices[0].get("delta", {})
@@ -127,7 +119,6 @@ async def generate_with_history(history: list[dict]) -> str:
         messages.append({"role": role, "content": content})
     
     payload = {
-        "model": VLLM_MODEL,
         "messages": messages,
         "temperature": 0.7,
         "max_tokens": 2048
@@ -136,7 +127,7 @@ async def generate_with_history(history: list[dict]) -> str:
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             response = await client.post(
-                VLLM_API_URL,
+                LLAMACPP_API_URL,
                 headers=headers,
                 json=payload
             )
