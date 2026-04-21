@@ -28,7 +28,6 @@ See [Requirements](#requirements) section below.
 ### Software
 - NVIDIA Driver (installed on Windows)
 - NVIDIA Container Toolkit (for Docker GPU access)
-- Docker Desktop with GPU enabled
 
 ### Check GPU Access
 ```bash
@@ -39,11 +38,7 @@ If this shows your GPU info, you're ready.
 
 ## Setup
 
-### 1. Configure GPU Access in Docker Desktop
-- Open Docker Desktop → Settings → Resources → GPU
-- Enable GPU access
-
-### 2. Start the Application
+### 1. Start the Application
 
 ```bash
 docker-compose up --build
@@ -57,14 +52,14 @@ This will:
 
 **First run:** Model download + loading may take 5-10 minutes.
 
-### 3. Open the App
+### 2. Open the App
 Navigate to http://localhost:8501
 
 ## Model
 
 This branch uses **Qwen3.5-4B-Q4_K_M** (~4GB):
 - Good quality for chat
-- GGUF format from TheBloke
+- GGUF format from UnSloth
 
 To change the model, edit `docker-compose.yml`:
 ```yaml
@@ -193,14 +188,7 @@ command: |
 
 ---
 
-### 4. Cold Start Latency
-**Problem:** First request takes 90+ seconds - model must load from disk.
-
-**Solution:** Keep container warm with `restart: unless-stopped` in docker-compose.yml.
-
----
-
-### 5. Healthcheck Race Condition
+### 4. Healthcheck Race Condition
 **Problem:** Backend starts before llama.cpp is ready, causing connection failures.
 
 **Solution:** Add healthcheck with `service_healthy` dependency:
@@ -212,7 +200,7 @@ depends_on:
 
 ---
 
-### 6. Slow Prompt Processing (CPU Mode)
+### 5. Slow Prompt Processing (CPU Mode)
 **Problem:** Prompt evaluation taking 3,631ms per token instead of near-instant.
 
 **Evidence:**
@@ -226,14 +214,12 @@ prompt eval time = 90788.57 ms / 25 tokens (3631.54 ms per token)
 
 ---
 
-### 7. Think Tags Display
+### 6. Think Tags Display
 **Problem:** Qwen models output `<think>...</think>` tags in response.
 
 **Solution:** Remove chat template and use this when launching llama-server:
 ```
 "--reasoning-format", "deepseek",
-```
-
 ```
 
 ---
