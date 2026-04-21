@@ -1,4 +1,4 @@
-# Winston - LLM Chat Application (llama.cpp Version)
+# QuikSesh - LLM Chat Application (llama.cpp Version)
 
 A real-time LLM chat application with token-by-token streaming, using a local llama.cpp server instead of cloud APIs.
 
@@ -62,7 +62,7 @@ Navigate to http://localhost:8501
 
 ## Model
 
-This branch uses **Mistral-7B-v0.1 Q4_K_M** (~4GB):
+This branch uses **Qwen3.5-4B-Q4_K_M** (~4GB):
 - Good quality for chat
 - GGUF format from TheBloke
 
@@ -78,7 +78,7 @@ command: [
 
 ### Model Download Stuck
 - First run downloads ~1GB from HuggingFace
-- Check logs: `docker logs winston-model-downloader`
+- Check logs: `docker logs QuikSesh-model-downloader`
 
 ### CUDA Out of Memory
 - Try a smaller model
@@ -146,7 +146,6 @@ python -m pytest backend/tests/ -v
 | Branch | Model | GPU | Size | Internet |
 |--------|-------|-----|------|----------|
 | **main** | Gemini (cloud) | ❌ | N/A | ✅ Yes |
-| **vllm** | Qwen (local) | ✅ 6GB+ | ~10GB | ❌ No |
 | **llamacpp** | Qwen (local) | ✅ 4GB+ | ~2GB | ❌ No |
 
 ---
@@ -177,8 +176,7 @@ llama_params_fit_impl: context size reduced from 262144 to 20480
 
 **Solutions:**
 - Use a smaller model (Qwen2.5-1.5B instead of 4B)
-- Reduce GPU layers: change `-ngl 32` to `-ngl 16`
-- Use lighter quantization: Q2_K instead of Q4_K_M
+- Use lighter quantization: Q4 instead of Q8
 
 ---
 
@@ -231,11 +229,11 @@ prompt eval time = 90788.57 ms / 25 tokens (3631.54 ms per token)
 ### 7. Think Tags Display
 **Problem:** Qwen models output `<think>...</think>` tags in response.
 
-**Solution:** Filter in frontend before display:
-```javascript
-function cleanResponse(text) {
-  return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-}
+**Solution:** Remove chat template and use this when launching llama-server:
+```
+"--reasoning-format", "deepseek",
+```
+
 ```
 
 ---
@@ -263,10 +261,10 @@ llama_params_fit_impl: context size reduced from 262144 to 20480
 ### Container Won't Start
 ```bash
 # Check logs
-docker logs winston-llamacpp
+docker logs QuikSesh-llamacpp
 
 # Check GPU access
-docker exec winston-llamacpp nvidia-smi
+docker exec QuikSesh-llamacpp nvidia-smi
 ```
 
 ### Slow Responses
@@ -335,10 +333,10 @@ python -m pytest backend/tests/test_llm.py -v
 | Feature | VLLM | llama.cpp |
 |---------|-----|-----------|
 | **Image Size** | ~10GB | ~2GB |
-| **GPU VRAM Required** | 6GB+ | 4GB+ |
+| **GPU VRAM Required** | 6GB++ | 4GB+ |
 | **Startup Time** | ~2 minutes | ~10 seconds |
-| **First Request** | ~30 seconds | ~90 seconds |
-| **FFA Performance** | Excellent | Good |
+| **First Request** | not tested | ~90 seconds |
+| **FFA Performance** | not tested | Good |
 | **Easy Quantization** | No | Yes (GGUF) |
 | **Docker Images** | Official | Official |
 | **API Compatibility** | OpenAI | OpenAI |
@@ -465,7 +463,7 @@ while (true) {
 ### Q23: How do you debug the LLM responses?
 **A:** Check Docker logs:
 ```bash
-docker logs winston-llamacpp
+docker logs QuikSesh-llamacpp
 ```
 
 ### Q24: What's the retry strategy for errors?

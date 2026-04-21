@@ -2,7 +2,7 @@ services:
   # Download model on first run
   model-downloader:
     image: alpine:latest
-    container_name: winston-model-downloader
+    container_name: QuikSesh-model-downloader
     volumes:
       - ./models:/models
     command: |
@@ -19,7 +19,7 @@ services:
   # llama.cpp server
   llamacpp:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: winston-llamacpp
+    container_name: QuikSesh-llamacpp
     ports:
       - "8080:8080"
     volumes:
@@ -33,6 +33,7 @@ services:
       "--reasoning-format", "deepseek",
       "--flash-attn", "1",
       "-rea", "off"
+
     ]
     deploy:
       resources:
