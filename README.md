@@ -28,6 +28,7 @@ See [Requirements](#requirements) section below.
 ### Software
 - NVIDIA Driver (installed on Windows)
 - NVIDIA Container Toolkit (for Docker GPU access)
+- Nvidia CUDA 13
 
 ### Check GPU Access
 ```bash
