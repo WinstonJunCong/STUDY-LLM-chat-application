@@ -8,9 +8,9 @@ services:
     command: |
       sh -c "mkdir -p /models && \
       apk add --no-cache curl && \
-      if [ ! -f /models/Qwen3.5-4B-Q4_K_M.gguf ]; then \
+      if [ ! -f /models/Qwen3.5-4B-Q3_K_S.gguf ]; then \
       echo 'Downloading Qwen3.5-4B model...' && \
-      curl -L --retry 3 --connect-timeout 30 -o /models/Qwen3.5-4B-Q4_K_M.gguf 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf' && \
+      curl -L --retry 3 --connect-timeout 30 -o /models/Qwen3.5-4B-Q3_K_S.gguf 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q3_K_S.gguf' && \
       echo 'Download complete!'; \
       else \
       echo 'Model already exists, skipping download'; \
@@ -25,7 +25,7 @@ services:
     volumes:
       - ./models:/models
     command: [
-      "-m", "/models/Qwen3.5-4B-Q4_K_M.gguf",
+      "-m", "/models/Qwen3.5-4B-Q3_K_S.gguf",
       "--host", "0.0.0.0",
       "-ngl", "32",
       "--ctx-size", "8192",
