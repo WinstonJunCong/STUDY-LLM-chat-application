@@ -1,19 +1,69 @@
-"""LLM service for Gemini API with streaming support"""
+"""LLM service for Gemini API with RAG and streaming support"""
 import os
 import json
 from typing import AsyncGenerator
 import httpx
 
+from . import memory, knowledge_base
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:streamGenerateContent?alt=sse"
 
+SYSTEM_PROMPT = """You are a helpful AI assistant with access to a knowledge base and conversation memory.
 
-async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
+Use the provided knowledge and previous conversation context to provide accurate, context-aware responses.
+Be concise and direct in your answers."""
+
+
+async def build_rag_prompt(query: str, history: list[dict]) -> list[dict]:
+    """Build prompt with RAG context"""
+    context_parts = []
+    
+    knowledge = await knowledge_base.retrieve_knowledge(query, n_results=3)
+    if knowledge:
+        context_parts.append(knowledge_base.format_knowledge(knowledge))
+    
+    memory_contexts = await memory.retrieve_context(query, n_results=3)
+    context_parts.append(memory.format_context(memory_contexts))
+    
+    formatted_history = []
+    for msg in history:
+        role = msg.get("role", "user")
+        if "parts" in msg:
+            content = "".join(p.get("text", "") for p in msg["parts"])
+        else:
+            content = msg.get("content", "")
+        formatted_history.append({
+            "role": role,
+            "parts": [{"text": content}]
+        })
+    
+    context_str = "\n\n".join(filter(None, context_parts))
+    
+    system_msg = {"role": "model", "parts": [{"text": SYSTEM_PROMPT}]}
+    if context_str:
+        system_msg["parts"].append({"text": f"\n\n{context_str}"})
+    
+    return [system_msg] + formatted_history
+
+
+async def stream_llm_response(history: list[dict], use_rag: bool = True) -> AsyncGenerator[str, None]:
     """Stream tokens from Gemini API using SSE"""
     if not GEMINI_API_KEY:
         yield "data: {\"error\": \"GEMINI_API_KEY not set\"}\n\n"
         return
+
+    if use_rag:
+        query = ""
+        if history:
+            last_msg = history[-1]
+            if "parts" in last_msg:
+                query = "".join(p.get("text", "") for p in last_msg.get("parts", []))
+            else:
+                query = last_msg.get("content", "")
+        
+        history = await build_rag_prompt(query, history)
 
     headers = {
         "Content-Type": "application/json"
@@ -66,7 +116,6 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
                 async for chunk in response.aiter_text():
                     buffer += chunk
                     
-                    # Process all complete events (separated by \n\n)
                     while "\n\n" in buffer:
                         event, buffer = buffer.split("\n\n", 1)
                         for line in event.splitlines():
@@ -83,7 +132,6 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
                                 except json.JSONDecodeError:
                                     continue
                     
-                    # Process any remaining data in buffer (final chunk without \n\n)
                     if buffer.strip() and not buffer.endswith("\n\n"):
                         if buffer.startswith("data: "):
                             try:
@@ -101,11 +149,22 @@ async def stream_llm_response(history: list[dict]) -> AsyncGenerator[str, None]:
             yield f'data: {{"error": "{str(e)}"}}\n\n'
 
 
-async def generate_with_history(history: list[dict]) -> str:
+async def generate_with_history(history: list[dict], use_rag: bool = True) -> str:
     """Non-streaming LLM response (fallback)"""
     if not GEMINI_API_KEY:
         return "Error: GEMINI_API_KEY not set"
     
+    if use_rag:
+        query = ""
+        if history:
+            last_msg = history[-1]
+            if "parts" in last_msg:
+                query = "".join(p.get("text", "") for p in last_msg.get("parts", []))
+            else:
+                query = last_msg.get("content", "")
+        
+        history = await build_rag_prompt(query, history)
+
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": history,
@@ -136,3 +195,8 @@ async def generate_with_history(history: list[dict]) -> str:
 async def get_full_response(history: list[dict]) -> str:
     """Get full response for database storage"""
     return await generate_with_history(history)
+
+
+async def store_interaction(query: str, response: str):
+    """Store query-response in memory"""
+    await memory.add_turn(query, response)

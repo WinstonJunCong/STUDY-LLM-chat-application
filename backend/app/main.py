@@ -24,6 +24,26 @@ app.add_middleware(
 app.include_router(routes.router, prefix="/api")
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Seed knowledge base on startup"""
+    try:
+        from app.services import vector_store
+        from app.services.knowledge_seeder import seed_knowledge
+        
+        # Check if knowledge collection is empty, seed if needed
+        try:
+            client = vector_store.get_client()
+            client.get_collection("knowledge")
+        except Exception:
+            # Collection doesn't exist, seed it
+            print("Seeding knowledge base...")
+            count = await seed_knowledge()
+            print(f"Seeded {count} knowledge items")
+    except Exception as e:
+        print(f"Warning: Could not seed knowledge base: {e}")
+
+
 @app.options("/{path:path}")
 async def preflight_handler(path: str):
     return {"status": "ok"}

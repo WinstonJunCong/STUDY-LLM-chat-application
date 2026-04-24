@@ -34,10 +34,12 @@ async def chat(request: ChatRequest):
                 full_response += extract_token_from_sse(token)
                 yield token
 
-            # Only save to DB after successful streaming
+            # Only save to DB and memory after successful streaming
             if full_response:
                 database.add_message("user", request.message)
                 database.add_message("assistant", full_response)
+                # Store in vector memory for RAG
+                await llm.store_interaction(request.message, full_response)
             else:
                 database.add_message("user", request.message)
                 database.add_message("assistant", "[No response]")
